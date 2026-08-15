@@ -111,7 +111,7 @@ export function TtsApp() {
           >
             <Smartphone className="h-4 w-4" /> Download Android App
           </a>
-          <p className="text-xs text-muted-foreground">Install the Android app for offline access</p>
+          <p className="text-xs text-muted-foreground">Get the app for a faster, native experience</p>
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
