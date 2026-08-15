@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, Download, LoaderCircle, Sparkles, Volume2 } from 'lucide-react'
+import { CircleAlert, Download, LoaderCircle, Smartphone, Sparkles, Volume2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { VoiceSelect } from '@/components/voice-select'
@@ -103,6 +103,17 @@ export function TtsApp() {
       </header>
 
       <main className="flex flex-col gap-5">
+        <section className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-5 text-center shadow-sm sm:p-6">
+          <a
+            href="https://github.com/luxsiradhna111-sudo/vocalize-ai/releases/download/v1.0/build_85d5a3d1-5109-41bb-8bad-ad6ef091edfe.apk"
+            download
+            className="inline-flex h-11 w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 text-sm font-medium text-white shadow-md transition-opacity hover:opacity-90"
+          >
+            <Smartphone className="h-4 w-4" /> Download Android App
+          </a>
+          <p className="text-xs text-muted-foreground">Install the Android app for offline access</p>
+        </section>
+
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <label htmlFor="tts-input" className="text-sm font-medium">
