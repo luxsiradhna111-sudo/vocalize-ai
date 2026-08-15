@@ -1,64 +1,52 @@
 'use client'
 
-import {
-  CircleAlert,
-  Download,
-  LoaderCircle,
-  Pause,
-  Play,
-  Sparkles,
-  Square,
-} from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { CircleAlert, Download, LoaderCircle, Sparkles, Volume2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { VoiceSelect } from '@/components/voice-select'
 import { Button } from '@/components/ui/button'
-import { useSpeech } from '@/hooks/use-speech'
+import { useTts } from '@/hooks/use-tts'
 
 const MAX_CHARS = 5000
 
 export function TtsApp() {
   const {
     voices,
-    supported,
+    voicesLoading,
+    voicesError,
     status,
     error,
     audioUrl,
-    speak,
-    pause,
-    resume,
-    stop,
     generate,
     reset,
     setError,
-  } = useSpeech()
+  } = useTts()
 
   const [text, setText] = useState('')
-  const [voiceURI, setVoiceURI] = useState<string | null>(null)
+  const [voice, setVoice] = useState<string | null>(null)
   const [rate, setRate] = useState(1)
   const [pitch, setPitch] = useState(1)
-  const audioRef = useRef<HTMLAudioElement>(null)
 
-  // Pick a sensible default voice once voices load.
+  // Pick a sensible default voice (English US female) once voices load.
   useEffect(() => {
-    if (!voiceURI && voices.length) {
+    if (!voice && voices.length) {
       const preferred =
-        voices.find((v) => v.lang.startsWith('en') && v.default) ||
-        voices.find((v) => v.lang.startsWith('en')) ||
+        voices.find((v) => v.shortName === 'en-US-AriaNeural') ||
+        voices.find((v) => v.locale === 'en-US' && v.gender === 'Female') ||
+        voices.find((v) => v.locale.startsWith('en')) ||
         voices[0]
-      setVoiceURI(preferred?.voiceURI ?? null)
+      setVoice(preferred?.shortName ?? null)
     }
-  }, [voices, voiceURI])
+  }, [voices, voice])
 
   const charCount = text.length
   const overLimit = charCount > MAX_CHARS
   const isEmpty = text.trim().length === 0
   const isBusy = status === 'generating'
-  const isSpeaking = status === 'playing' || status === 'paused'
 
-  const opts = useMemo(
-    () => ({ text: text.trim(), voiceURI, rate, pitch }),
-    [text, voiceURI, rate, pitch],
+  const selectedVoice = useMemo(
+    () => voices.find((v) => v.shortName === voice) ?? null,
+    [voices, voice],
   )
 
   const validate = () => {
@@ -70,41 +58,24 @@ export function TtsApp() {
       setError(`Text is too long. Please keep it under ${MAX_CHARS.toLocaleString()} characters.`)
       return false
     }
+    if (!voice) {
+      setError('Please choose a voice first.')
+      return false
+    }
     return true
   }
 
-  const handlePlay = () => {
-    if (status === 'paused') {
-      resume()
-      return
-    }
+  const handleGenerate = () => {
     if (!validate()) return
-    speak(opts)
-  }
-
-  const handleGenerate = async () => {
-    if (!validate()) return
-    try {
-      await generate(opts)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : ''
-      if (message === 'capture-denied') {
-        setError(
-          'Recording was cancelled. The speech played live — allow screen/tab audio sharing to save a file.',
-        )
-      } else if (message === 'capture-unsupported' || message === 'no-audio-track') {
-        setError(
-          'Your browser can\u2019t capture audio for download, but live playback works. Try Chrome on desktop and share the tab with audio.',
-        )
-      }
-    }
+    void generate({ text: text.trim(), voice: voice as string, rate, pitch })
   }
 
   const handleDownload = () => {
     if (!audioUrl) return
     const a = document.createElement('a')
     a.href = audioUrl
-    a.download = `vocalize-${Date.now()}.webm`
+    const namePart = selectedVoice?.displayName?.replace(/\s+/g, '-').toLowerCase() ?? 'speech'
+    a.download = `vocalize-${namePart}-${Date.now()}.mp3`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -125,7 +96,7 @@ export function TtsApp() {
           </span>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Vocalize</h1>
-            <p className="text-xs text-muted-foreground">Text to speech, instantly</p>
+            <p className="text-xs text-muted-foreground">Natural cloud voices, instantly</p>
           </div>
         </div>
         <ThemeToggle />
@@ -154,46 +125,47 @@ export function TtsApp() {
             className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 text-sm leading-relaxed shadow-inner outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive"
           />
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <div className="sm:col-span-3">
-              <VoiceSelect
-                voices={voices}
-                value={voiceURI}
-                onChange={setVoiceURI}
-                disabled={!supported || isBusy}
-              />
-            </div>
+          <div className="mt-4 flex flex-col gap-4">
+            <VoiceSelect
+              voices={voices}
+              value={voice}
+              onChange={setVoice}
+              loading={voicesLoading}
+              disabled={isBusy}
+            />
 
-            <SliderField
-              label="Speed"
-              value={rate}
-              min={0.5}
-              max={2}
-              step={0.1}
-              onChange={setRate}
-              disabled={isBusy}
-            />
-            <SliderField
-              label="Pitch"
-              value={pitch}
-              min={0}
-              max={2}
-              step={0.1}
-              onChange={setPitch}
-              disabled={isBusy}
-            />
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setRate(1)
-                  setPitch(1)
-                }}
-                disabled={isBusy || (rate === 1 && pitch === 1)}
-                className="h-9 w-full rounded-lg border border-border bg-background text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
-              >
-                Reset
-              </button>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <SliderField
+                label="Speed"
+                value={rate}
+                min={0.5}
+                max={2}
+                step={0.1}
+                onChange={setRate}
+                disabled={isBusy}
+              />
+              <SliderField
+                label="Pitch"
+                value={pitch}
+                min={0}
+                max={2}
+                step={0.1}
+                onChange={setPitch}
+                disabled={isBusy}
+              />
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRate(1)
+                    setPitch(1)
+                  }}
+                  disabled={isBusy || (rate === 1 && pitch === 1)}
+                  className="h-9 w-full rounded-lg border border-border bg-background text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -208,82 +180,45 @@ export function TtsApp() {
           </div>
         )}
 
-        {!supported && (
+        {voicesError && !error && (
           <div
             role="alert"
             className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400"
           >
             <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>Your browser doesn&apos;t support the Web Speech API. Try Chrome, Edge, or Safari.</p>
+            <p>{voicesError}</p>
           </div>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {isSpeaking ? (
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleGenerate}
+          disabled={isBusy || voicesLoading}
+          className="w-full bg-brand-gradient text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {isBusy ? (
             <>
-              <Button
-                type="button"
-                size="lg"
-                onClick={status === 'playing' ? pause : handlePlay}
-                className="flex-1 bg-brand-gradient text-white shadow-md transition-opacity hover:opacity-90"
-              >
-                {status === 'playing' ? (
-                  <>
-                    <Pause className="h-4 w-4" /> Pause
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" /> Resume
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                onClick={stop}
-                className="sm:w-32"
-              >
-                <Square className="h-4 w-4" /> Stop
-              </Button>
+              <LoaderCircle className="h-4 w-4 animate-spin" /> Generating speech…
             </>
           ) : (
             <>
-              <Button
-                type="button"
-                size="lg"
-                onClick={handlePlay}
-                disabled={!supported || isBusy}
-                className="flex-1 bg-brand-gradient text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                <Play className="h-4 w-4" /> Generate Speech
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                onClick={handleGenerate}
-                disabled={!supported || isBusy}
-                className="sm:w-44"
-              >
-                {isBusy ? (
-                  <>
-                    <LoaderCircle className="h-4 w-4 animate-spin" /> Recording…
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" /> Save as audio
-                  </>
-                )}
-              </Button>
+              <Volume2 className="h-4 w-4" /> Generate Speech
             </>
           )}
-        </div>
+        </Button>
 
         {audioUrl && (
           <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">Generated audio</h2>
+              <h2 className="text-sm font-medium">
+                Generated audio
+                {selectedVoice ? (
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {selectedVoice.displayName} · {selectedVoice.gender}
+                  </span>
+                ) : null}
+              </h2>
               <button
                 type="button"
                 onClick={reset}
@@ -293,7 +228,7 @@ export function TtsApp() {
               </button>
             </div>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <audio ref={audioRef} src={audioUrl} controls className="w-full" />
+            <audio src={audioUrl} controls autoPlay className="w-full" />
             <Button
               type="button"
               onClick={handleDownload}
@@ -306,7 +241,7 @@ export function TtsApp() {
       </main>
 
       <footer className="mt-auto pt-6 text-center text-xs text-muted-foreground">
-        Powered by your browser&apos;s Web Speech API — free, private, no limits.
+        Powered by Microsoft Edge&apos;s online neural voices — 300+ natural voices, no API key.
       </footer>
     </div>
   )

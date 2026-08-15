@@ -16,7 +16,7 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           {
             key: 'Permissions-Policy',
-            // The app records tab audio via display capture for downloads.
+            // Audio is synthesized server-side; no device features are needed.
             value: 'camera=(), geolocation=(), microphone=()',
           },
         ],
